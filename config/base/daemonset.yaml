@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cni-ethtool
+  labels:
+    k8s-app: cni-ethtool
+spec:
+  selector:
+    matchLabels:
+      name: cni-ethtool
+  template:
+    metadata:
+      labels:
+        name: cni-ethtool
+    spec:
+      hostNetwork: true
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: cni-ethtool
+        image: quay.io/akaris/cni-ethtool:latest
+        imagePullPolicy: Never
+        command:
+        - /bin/bash
+        - "-c"
+        - |
+          cp /usr/local/bin/cni-ethtool /host/opt/cni/bin/cni-ethtool
+          cp /etc/cni-ethtool/10-kindnet.conflist /host/etc/cni/net.d/10-kindnet.conflist
+          sleep infinity
+        volumeMounts:
+        - name: host
+          mountPath: /host
+        - name: config
+          mountPath: /etc/cni-ethtool
+      volumes:
+      - name: host
+        hostPath:
+          path: /
+      - name: config
+        configMap:
+          name: cni-ethtool
