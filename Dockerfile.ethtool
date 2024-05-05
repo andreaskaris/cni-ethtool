@@ -1,0 +1,2 @@
+FROM registry.fedoraproject.org/fedora-minimal:latest
+RUN microdnf install -y ethtool && microdnf clean all

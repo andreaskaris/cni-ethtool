@@ -42,10 +42,10 @@ data:
           "eth0": {
             "self": {
               "tx-checksumming": false,
-              "rx-checksumming": true
+              "rx-checksumming": false
             },
-            "peer": {
-              "tx-checksumming": true,
+            "peer": { 
+              "tx-checksumming": false,
               "rx-checksumming": false
             }
           }

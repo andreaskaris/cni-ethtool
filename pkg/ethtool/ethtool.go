@@ -2,102 +2,76 @@ package ethtool
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/andreaskaris/veth-ethtool/pkg/helpers"
 )
 
-type OffloadList map[string]OffloadAttributes
+const (
+	SelfClassifier = "self"
+	PeerClassifier = "peer"
+)
 
-func (o OffloadList) Equals(b OffloadList) bool {
-	if len(o) != len(b) {
-		return false
+type EthtoolConfig map[string]map[string]bool
+
+func (e EthtoolConfig) GetSelf() map[string]bool {
+	self, ok := e[SelfClassifier]
+	if ok {
+		return self
 	}
-	for k := range o {
-		if !o[k].Equals(b[k]) {
+	return nil
+}
+
+func (e EthtoolConfig) GetPeer() map[string]bool {
+	self, ok := e[PeerClassifier]
+	if ok {
+		return self
+	}
+	return nil
+}
+
+func (e EthtoolConfig) IsValid() bool {
+	if len(e) == 2 {
+		_, ok1 := e[SelfClassifier]
+		_, ok2 := e[PeerClassifier]
+		return ok1 && ok2
+	}
+	if len(e) == 1 {
+		_, ok := e[SelfClassifier]
+		return ok
+	}
+	return false
+}
+
+func (e EthtoolConfig) String() string {
+	b, err := json.Marshal(e)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+type EthtoolConfigs map[string]EthtoolConfig
+
+func (es EthtoolConfigs) IsValid() bool {
+	for _, ethtoolConfig := range es {
+		if !ethtoolConfig.IsValid() {
 			return false
 		}
+
 	}
 	return true
 }
 
-type OffloadAttributes struct {
-	Active    *bool `json:"active"`
-	Fixed     *bool `json:"fixed"`
-	Requested *bool `json:"requested"`
-}
-
-func (o OffloadAttributes) Equals(b OffloadAttributes) bool {
-	if !boolPointerEquals(o.Active, b.Active) {
-		return false
-	}
-	if !boolPointerEquals(o.Fixed, b.Fixed) {
-		return false
-	}
-	if !boolPointerEquals(o.Requested, b.Requested) {
-		return false
-	}
-	return true
-}
-
-func boolPointerEquals(a *bool, b *bool) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil {
-		return false
-	}
-	if b == nil {
-		return false
-	}
-	return *a == *b
-}
-
-// List lists the offloading attributes of an interfaces.
-func List(namespace, iface string) (OffloadList, error) {
-	if namespace != "" {
-		// TODO
-		return OffloadList{}, nil
-	}
-	// First, read the output of ethtool. Ethtool returns mixed JSON output, therefore read the nested elements
-	// as json.RawMessage. In the next step, we will then filter out the "ifname" field which is the only one that does
-	// not match our desired format.
-	var ol []map[string]json.RawMessage
-	out, err := ethtool("--json", "-k", iface)
+func (es EthtoolConfigs) String() string {
+	b, err := json.Marshal(es)
 	if err != nil {
-		return nil, err
+		return ""
 	}
-	err = json.Unmarshal(out, &ol)
-	if err != nil {
-		return nil, err
-	}
-	if len(ol) != 1 {
-		return nil, fmt.Errorf("unexpected length for offload list: %v", ol)
-	}
-
-	// Now, filter out "ifname". Then, unmarshal all values individually and write everything into one homogenous
-	// OffloadList.
-	offloadList := OffloadList{}
-	for k, v := range ol[0] {
-		var ola OffloadAttributes
-		if k == "ifname" {
-			continue
-		}
-		err := json.Unmarshal(v, &ola)
-		if err != nil {
-			return nil, fmt.Errorf("cannot unmarshal attribute %q with value %q", k, v)
-		}
-		offloadList[k] = ola
-	}
-	return offloadList, nil
+	return string(b)
 }
 
 // Set sets the offloading attribute of an interface.
-func Set(namespace, iface, field string, enable bool) ([]byte, error) {
-	if namespace != "" {
-		// TODO
-		return []byte{}, nil
-	}
+func Set(iface, field string, enable bool) ([]byte, error) {
 	set := "off"
 	if enable {
 		set = "on"

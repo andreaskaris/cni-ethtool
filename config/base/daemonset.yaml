@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: cni-ethtool
+  name: cni-ethtool-installer
   labels:
-    k8s-app: cni-ethtool
+    k8s-app: cni-ethtool-installer
 spec:
   selector:
     matchLabels:
-      name: cni-ethtool
+      name: cni-ethtool-installer-installer
   template:
     metadata:
       labels:
-        name: cni-ethtool
+        name: cni-ethtool-installer-installer
     spec:
       hostNetwork: true
       tolerations:
@@ -22,7 +22,7 @@ spec:
         operator: Exists
         effect: NoSchedule
       containers:
-      - name: cni-ethtool
+      - name: cni-ethtool-installer
         image: quay.io/akaris/cni-ethtool:latest
         imagePullPolicy: Never
         command:

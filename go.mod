@@ -1,4 +1,4 @@
-module github.com/akaris/cni-ethtool
+module github.com/andreaskaris/cni-ethtool
 
 go 1.22
 

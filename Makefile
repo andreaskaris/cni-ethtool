@@ -3,7 +3,9 @@ MAKEFILE_DIR = $(shell cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null 
 OUTPUT_DIR = $(MAKEFILE_DIR)/_output
 KIND_CLUSTER_CONFIG ?= $(OUTPUT_DIR)/kubeconfig
 CONTAINER_IMAGE ?= quay.io/akaris/cni-ethtool:latest
+ETHTOOL_CONTAINER_IMAGE ?= quay.io/akaris/fedora:ethtool
 SAVED_IMAGE ?= $(OUTPUT_DIR)/image.tar
+ETHTOOL_SAVED_IMAGE ?= $(OUTPUT_DIR)/ethool-image.tar
 CONTAINER_ENGINE ?= KIND_EXPERIMENTAL_PROVIDER=podman
 # CONTAINER_ENGINE = 
 
@@ -24,6 +26,10 @@ test-coverage:
 build-container:
 	podman build -t $(CONTAINER_IMAGE) .
 
+.PHONY: build-ethtool-container
+build-ethtool-container:
+	podman build -t $(ETHTOOL_CONTAINER_IMAGE) -f Dockerfile.ethtool .
+
 .PHONY: create-kind
 create-kind:
 	$(CONTAINER_ENGINE) kind create cluster --name $(KIND_CLUSTER_NAME) --kubeconfig $(KIND_CLUSTER_CONFIG)
@@ -38,6 +44,12 @@ load-container-image-kind:
 	$(CONTAINER_ENGINE) kind load image-archive $(SAVED_IMAGE) --name $(KIND_CLUSTER_NAME)
 	rm -f $(SAVED_IMAGE)
 
+.PHONY: load-ethtool-container-image-kind
+load-ethtool-container-image-kind:
+	podman save $(ETHTOOL_CONTAINER_IMAGE) > $(ETHTOOL_SAVED_IMAGE)
+	$(CONTAINER_ENGINE) kind load image-archive $(ETHTOOL_SAVED_IMAGE) --name $(KIND_CLUSTER_NAME)
+	rm -f $(ETHTOOL_SAVED_IMAGE)
+
 .PHONY: deploy
 deploy:
 	kubectl kustomize $(MAKEFILE_DIR)/config/kubernetes | kubectl apply -f -
@@ -47,13 +59,13 @@ undeploy:
 	kubectl kustomize $(MAKEFILE_DIR)/config/kubernetes | kubectl delete -f -
 
 .PHONY: build-and-deploy
-build-and-deploy: build-container load-container-image-kind deploy
+build-and-deploy: build-container load-container-image-kind build-ethtool-container load-ethtool-container-image-kind deploy
 
-# .PHONY: e2e-test
-# e2e-test:
-# 	export KUBECONFIG=$(KIND_CLUSTER_CONFIG) && \
-# 	cd $(MAKEFILE_DIR)/e2e && \
-# 	go test -v -count 1 ./...
-# 
-# .PHONY: build-and-e2e-test
-# build-and-e2e-test: build-container load-container-image-kind e2e-test
+.PHONY: e2e-test
+e2e-test:
+	export KUBECONFIG=$(KIND_CLUSTER_CONFIG) && \
+	cd $(MAKEFILE_DIR)/e2e && \
+	go test -v -count 1 ./...
+
+.PHONY: build-and-e2e-test
+build-and-e2e-test: build-container load-container-image-kind build-ethtool-container load-ethtool-container-image-kind e2e-test
