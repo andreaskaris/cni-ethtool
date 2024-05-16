@@ -2,10 +2,12 @@ package helpers
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
 	types100 "github.com/containernetworking/cni/pkg/types/100"
+	"github.com/vishvananda/netlink"
 )
 
 const (
@@ -47,29 +49,72 @@ func RunCommand(c string, parameters ...string) ([]byte, error) {
 	return out, err
 }
 
-func ExtractInterfaceProperties(interfaces []*types100.Interface, interfaceName string) (string, string, error) {
+// ExtractInterfaceNamespace takes an interface name inside the namespace, e.g. "eth0", and searches the list of
+// provided interfaces for that interface name. On success, it returns the name of the namespace of that interface
+// (the content of the Sandbox field).
+func ExtractInterfaceNamespace(interfaces []*types100.Interface, interfaceName string) (string, error) {
 	for _, intf := range interfaces {
 		if intf.Name == interfaceName {
 			if intf.Sandbox == "" {
-				return "", "", fmt.Errorf("expected interfaces %q to be inside a namespace", intf.Name)
+				return "", fmt.Errorf("expected interfaces %q to be inside a namespace", intf.Name)
 			}
 			namespace := intf.Sandbox
-			veth, err := ExtractVeth(interfaces, interfaceName, namespace)
-			if err != nil {
-				return "", "", err
-			}
-			return namespace, veth, nil
+			return namespace, nil
 		}
 	}
-	return "", "", fmt.Errorf("could not find veth pair")
+	return "", fmt.Errorf("could not find namespaced interface %s", interfaceName)
 }
 
-// TODO
-func ExtractVeth(interfaces []*types100.Interface, interfaceName, namespace string) (string, error) {
-	for _, intf := range interfaces {
-		if intf.Sandbox == "" {
-			return intf.Name, nil
-		}
+// GetInterfaceIndex will return the interface index for the provided interface name.
+func GetInterfaceIndex(interfaceName string) (int, error) {
+	link, err := netlink.LinkByName(interfaceName)
+	if err != nil {
+		return -1, err
 	}
-	return "", fmt.Errorf("could not find veth pair")
+	return link.Attrs().Index, nil
+}
+
+// ExtractVeth iterates over the list of provided interfaces. For each interface, it checks:
+// * That the interface is in the global namespace.
+// * That the ParentIndex (peer index) of the interface equals the peerInterfaceIndex that we are looking for.
+// * That the NetNsID equals the provided netnsID.
+// If these conditions are met, it will return the name of the matching interface.
+func ExtractVeth(interfaces []*types100.Interface, netnsID, peerInterfaceIndex int) (string, error) {
+	for _, intf := range interfaces {
+		// We are only interested in interfaces in the global namespace.
+		if intf.Sandbox != "" {
+			continue
+		}
+		// Get the netlink interface.
+		link, err := netlink.LinkByName(intf.Name)
+		if err != nil {
+			continue
+		}
+		// Next, make sure that the interface index of the peer matches the parent index.
+		if link.Attrs().ParentIndex != peerInterfaceIndex {
+			continue
+		}
+		// Next, make sure that the interface's peer netns matches what we are looking for.
+		// link.Attrs().NetNsID holds the netns ID of the peer. We then compare to the netns IDs of files /run/netns.
+		if link.Attrs().NetNsID != netnsID {
+			continue
+		}
+		return intf.Name, nil
+	}
+	return "", fmt.Errorf("could not find veth peer for netnsID %d, peerInterfaceIndex %d", netnsID, peerInterfaceIndex)
+}
+
+// FindNetNSID expects a path to a netns and will return the ID of the corresponding netns.
+func FindNetNSID(netnsPath string) (int, error) {
+	f, err := os.Open(netnsPath)
+	if err != nil {
+		return -1, fmt.Errorf("could not open file %q for reading, err: %q", netnsPath, err)
+	}
+
+	id, err := netlink.GetNetNsIdByFd(int(f.Fd()))
+	if err != nil {
+		return -1, fmt.Errorf("issue running netlink.GetNetNsIdByFd, file: %q, err: %q", netnsPath, err)
+	}
+
+	return id, nil
 }

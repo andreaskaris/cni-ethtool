@@ -3,12 +3,19 @@ package ethtool
 import (
 	"encoding/json"
 
-	"github.com/andreaskaris/veth-ethtool/pkg/helpers"
+	"github.com/andreaskaris/cni-ethtool/pkg/helpers"
 )
 
 const (
 	SelfClassifier = "self"
 	PeerClassifier = "peer"
+)
+
+var (
+	status map[bool]string = map[bool]string{
+		true:  "on",
+		false: "off",
+	}
 )
 
 type EthtoolConfig map[string]map[string]bool
@@ -72,11 +79,7 @@ func (es EthtoolConfigs) String() string {
 
 // Set sets the offloading attribute of an interface.
 func Set(iface, field string, enable bool) ([]byte, error) {
-	set := "off"
-	if enable {
-		set = "on"
-	}
-	return ethtool("-K", iface, field, set)
+	return ethtool("-K", iface, field, status[enable])
 }
 
 var ethtool = func(parameters ...string) ([]byte, error) {

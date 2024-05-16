@@ -65,7 +65,7 @@ build-and-deploy: build-container load-container-image-kind build-ethtool-contai
 e2e-test:
 	export KUBECONFIG=$(KIND_CLUSTER_CONFIG) && \
 	cd $(MAKEFILE_DIR)/e2e && \
-	go test -v -count 1 ./...
+	go test -v -count 1 ./... $(RUN)
 
 .PHONY: build-and-e2e-test
 build-and-e2e-test: build-container load-container-image-kind build-ethtool-container load-ethtool-container-image-kind e2e-test

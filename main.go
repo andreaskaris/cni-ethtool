@@ -106,19 +106,40 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 	logger.Debug("cmdAdd", "prevResult", prevResult)
 
+	// Iterate over each interface of the Ethtool config, e.g. "eth0", "eth1", ...
 	for interfaceName, ethtoolConfig := range conf.Ethtool {
-		namespace, peerInterfaceName, err := helpers.ExtractInterfaceProperties(prevResult.Interfaces, interfaceName)
+		// Get the namespace name and the netns.
+		namespace, err := helpers.ExtractInterfaceNamespace(prevResult.Interfaces, interfaceName)
 		if err != nil {
 			return err
 		}
-		logger.Debug("cmdAdd", "eth", interfaceName, "namespace", namespace, "veth", peerInterfaceName)
+		netns, err := ns.GetNS(namespace)
+		if err != nil {
+			return err
+		}
 
-		for parameter, setting := range ethtoolConfig.GetSelf() {
-			logger.Debug("cmdAdd", "command", "ethtool.Set", "namespace", namespace, "interfaceName", interfaceName, "parameter", parameter, "setting", setting)
-			netns, err := ns.GetNS(namespace)
+		// Get the interface index of the interface inside the namespace (e.g. "eth0" has index "2").
+		var interfaceIndex int
+		err = netns.Do(func(_ ns.NetNS) error {
+			var err error
+			interfaceIndex, err = helpers.GetInterfaceIndex(interfaceName)
 			if err != nil {
 				return err
 			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		logger.Debug("cmdAdd", "step", "found interface namespace and index", "interfaceName", interfaceName,
+			"namespace", namespace, "interfaceIndex", interfaceIndex)
+
+		// Set ethtool parameters inside the pod. The "self" index.
+		// Set ethtool parameters inside the pod, one by one.
+		for parameter, setting := range ethtoolConfig.GetSelf() {
+			logger.Debug("cmdAdd", "step", "ethtool set parameter inside namespace", "namespace", namespace,
+				"interfaceName", interfaceName, "parameter", parameter, "setting", setting)
 			err = netns.Do(func(_ ns.NetNS) error {
 				_, err := ethtool.Set(interfaceName, parameter, setting)
 				return err
@@ -127,13 +148,28 @@ func cmdAdd(args *skel.CmdArgs) error {
 				return err
 			}
 		}
-		for parameter, setting := range ethtoolConfig.GetPeer() {
-			logger.Debug("cmdAdd", "command", "ethtool.Set", "namespace", "", "peerInterfaceName", peerInterfaceName, "parameter", parameter, "setting", setting)
-			if _, err := ethtool.Set(peerInterfaceName, parameter, setting); err != nil {
-				return err
+		// Set ethtool parameters for veth peer in global namespace, if one exists. The "peer" index.
+		if peerSettings := ethtoolConfig.GetPeer(); peerSettings != nil {
+			netnsID, err := helpers.FindNetNSID(namespace)
+			if err != nil {
+				return fmt.Errorf("could not find namespace id for netns %s, err: %q", namespace, err)
+			}
+			peerInterfaceName, err := helpers.ExtractVeth(prevResult.Interfaces, netnsID, interfaceIndex)
+			if err != nil {
+				return fmt.Errorf("could not find veth peer for interface %s in netns %s, err: %q",
+					interfaceName, namespace, err)
+			}
+			logger.Debug("cmdAdd", "step", "found netnsID and peerInterfaceName", "netnsID", netnsID,
+				"peerInterfaceName", peerInterfaceName)
+			// Set ethtool parameters in the global namespace, one by one.
+			for parameter, setting := range peerSettings {
+				logger.Debug("cmdAdd", "step", "ethtool set parameter inside global namespace",
+					"peerInterfaceName", peerInterfaceName, "parameter", parameter, "setting", setting)
+				if _, err := ethtool.Set(peerInterfaceName, parameter, setting); err != nil {
+					return err
+				}
 			}
 		}
-
 	}
 	logger.Debug("cmdAdd", "done", true)
 	// Pass through the result for the next plugin

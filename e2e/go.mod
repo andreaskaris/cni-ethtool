@@ -9,15 +9,13 @@ replace github.com/andreaskaris/cni-ethtool => ../
 require (
 	github.com/andreaskaris/cni-ethtool v0.0.0-00010101000000-000000000000
 	k8s.io/api v0.30.0
-	k8s.io/apimachinery v0.30.0
-	k8s.io/client-go v0.30.0
-	k8s.io/klog v1.0.0
+	k8s.io/apimachinery v0.30.1
 	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
 	sigs.k8s.io/e2e-framework v0.3.0
 )
 
 require (
-	github.com/andreaskaris/veth-ethtool v0.0.0-20240425221904-71b87c0081a5 // indirect
+	github.com/containernetworking/cni v1.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
@@ -42,6 +40,8 @@ require (
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
+	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/vladimirvivien/gexe v0.2.0 // indirect
 	golang.org/x/net v0.23.0 // indirect
 	golang.org/x/oauth2 v0.10.0 // indirect
@@ -54,6 +54,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	k8s.io/client-go v0.30.0 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	sigs.k8s.io/controller-runtime v0.15.1 // indirect
